@@ -150,8 +150,8 @@ def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
 
     step = int(chunk_size * (1 - overlap))
     # print('Initial shape: {} Chunk size: {} Step: {} Device: {}'.format(mix.shape[-1], chunk_size, step, device))
-    result = torch.zeros((1, 2, mix.size(-1)), dtype=torch.float32).to('cuda')
-    divider = torch.zeros((1, 2, mix.size(-1)), dtype=torch.float32).to('cuda')
+    result = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32).to('cuda')
+    divider = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32).to('cuda')
 
     total = 0
     for i in range(0, mix.shape[-1], step):
