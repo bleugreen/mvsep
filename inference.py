@@ -142,7 +142,7 @@ def demix_base(mix, device, models, infer_session):
 
         sources.append(tar_signal)
     # print('Time demix base: {:.2f} sec'.format(time() - start_time))
-    return sources
+    return torch.tensor(sources)
 
 
 def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
