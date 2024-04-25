@@ -505,7 +505,7 @@ def predict_with_model(options):
             all_instrum = ['vocals']
         for instrum in all_instrum:
             output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format(instrum)
-            sf.write(output_folder + '/' + output_name, result[instrum], sample_rates[instrum], subtype='FLOAT')
+            sf.write(output_folder + '/' + output_name, result.cpu().numpy()[instrum], sample_rates[instrum], subtype='FLOAT')
             print('File created: {}'.format(output_folder + '/' + output_name))
 
         # instrumental part 1
