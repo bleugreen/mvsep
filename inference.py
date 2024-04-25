@@ -24,6 +24,7 @@ from time import time
 import librosa
 import hashlib
 
+from torch.multiprocessing import Pool
 
 __VERSION__ = '1.0.1'
 
@@ -140,9 +141,9 @@ def demix_base(mix, device, models, infer_session):
         tar_waves = tar_waves.cpu()  # Move the result back to CPU only after all computations
         tar_signal = tar_waves[:, :, trim:-trim].transpose(0, 1).reshape(2, -1).numpy()[:, :-pad]
 
-        sources.append(tar_signal)
+        sources.append(torch.tensor(tar_signal))
     # print('Time demix base: {:.2f} sec'.format(time() - start_time))
-    return torch.tensor(sources)
+    return torch.stack(sources).to(device)
 
 
 def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
@@ -162,7 +163,7 @@ def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
         # print('Chunk: {} Start: {} End: {}'.format(total, start, end))
         mix_part = mix[:, start:end]
         sources = demix_base(mix_part, device, models, infer_session)
-        result[..., start:end] += sources.to(device)
+        result[..., start:end] += sources
         divider[..., start:end] += 1
     sources = result / divider
     # print('Final shape: {} Overall time: {:.2f}'.format(sources.shape, time() - start_time))
@@ -382,7 +383,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
 
             # it's instrumental so need to invert
             instrum_mdxb2 = sources2
-            vocals_mdxb2 = mixed_sound_array.T - instrum_mdxb2
+            vocals_mdxb2 = mixed_sound_array.T.to(self.device) - instrum_mdxb2.to(self.device)
 
         if update_percent_func is not None:
             val = 100 * (current_file_number + 0.40) / total_files
@@ -407,7 +408,6 @@ class EnsembleDemucsMDXMusicSeparationModel:
             audio = instrum.unsqueeze(0).type('torch.FloatTensor').to(self.device)
 
             all_outs = []
-            from torch.multiprocessing import Pool
 
             def process_model(i, model):
                 if i == 0:
@@ -433,7 +433,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
 
                 return out
 
-            with Pool(processes=1) as pool:
+            with Pool(processes=4) as pool:
                 all_outs = pool.starmap(process_model, enumerate(self.models))
 
             out = torch.stack(all_outs).sum(dim=0).cpu().numpy()
