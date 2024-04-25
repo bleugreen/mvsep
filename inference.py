@@ -343,13 +343,10 @@ class EnsembleDemucsMDXMusicSeparationModel:
         model = self.model_vocals_only
         shifts = 1
         overlap = overlap_large
-        vocals_demucs = 0.5 * apply_model(model, audio, shifts=shifts, overlap=overlap)[0][3].cpu().numpy()
+        vocals_demucs = 0.5 * apply_model(model, audio, shifts=shifts, overlap=overlap)[0][3]
 
-        if update_percent_func is not None:
-            val = 100 * (current_file_number + 0.10) / total_files
-            update_percent_func(int(val))
 
-        vocals_demucs += 0.5 * -apply_model(model, -audio, shifts=shifts, overlap=overlap)[0][3].cpu().numpy()
+        vocals_demucs += 0.5 * -apply_model(model, -audio, shifts=shifts, overlap=overlap)[0][3]
 
         if update_percent_func is not None:
             val = 100 * (current_file_number + 0.20) / total_files
@@ -367,9 +364,6 @@ class EnsembleDemucsMDXMusicSeparationModel:
 
         vocals_mdxb1 = sources1
 
-        if update_percent_func is not None:
-            val = 100 * (current_file_number + 0.30) / total_files
-            update_percent_func(int(val))
 
         if self.single_onnx is False:
             sources2 = -demix_full(
