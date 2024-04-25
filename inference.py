@@ -333,8 +333,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
         separated_music_arrays = {}
         output_sample_rates = {}
 
-        audio = np.expand_dims(mixed_sound_array.T, axis=0)
-        audio = torch.from_numpy(audio).type('torch.FloatTensor').to(self.device)
+        audio = mixed_sound_array.unsqueeze(0).to(self.device)
 
         overlap_large = self.overlap_large
         overlap_small = self.overlap_small
@@ -405,8 +404,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
             # Generate instrumental
             instrum = mixed_sound_array - vocals
 
-            audio = np.expand_dims(instrum.T, axis=0)
-            audio = torch.from_numpy(audio).type('torch.FloatTensor').to(self.device)
+            audio = instrum.unsqueeze(0).type('torch.FloatTensor').to(self.device)
 
             all_outs = []
             from torch.multiprocessing import Pool
@@ -498,6 +496,7 @@ def predict_with_model(options):
         audio, sr = librosa.load(input_audio, mono=False, sr=44100)
         if len(audio.shape) == 1:
             audio = np.stack([audio, audio], axis=0)
+        audio = torch.from_numpy(audio)
         print("Input audio: {} Sample rate: {}".format(audio.shape, sr))
         result, sample_rates = model.separate_music_file(
             audio.T,
