@@ -509,9 +509,9 @@ def predict_with_model(options):
             print('File created: {}'.format(output_folder + '/' + output_name))
 
         # instrumental part 1
-        inst = audio.T - result['vocals']
+        inst = audio.T.cuda() - result['vocals'].cuda()
         output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum')
-        sf.write(output_folder + '/' + output_name, inst, sr, subtype='FLOAT')
+        sf.write(output_folder + '/' + output_name, inst.cpu().numpy(), sr, subtype='FLOAT')
         print('File created: {}'.format(output_folder + '/' + output_name))
 
         # if not only_vocals:
