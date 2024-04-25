@@ -433,7 +433,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
 
                 return out
 
-            with Pool(processes=4) as pool:
+            with Pool(processes=2) as pool:
                 all_outs = pool.starmap(process_model, enumerate(self.models))
 
             out = torch.stack(all_outs).sum(dim=0).cpu().numpy()
