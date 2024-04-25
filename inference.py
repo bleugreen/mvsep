@@ -333,7 +333,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
         separated_music_arrays = {}
         output_sample_rates = {}
 
-        audio = mixed_sound_array.unsqueeze(0).to(self.device)
+        audio = mixed_sound_array.T.unsqueeze(0).type('torch.FloatTensor').to(self.device)
 
         overlap_large = self.overlap_large
         overlap_small = self.overlap_small
