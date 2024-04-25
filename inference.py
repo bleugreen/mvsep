@@ -146,30 +146,28 @@ def demix_base(mix, device, models, infer_session):
     return torch.stack(sources).to(device)
 
 
-def demix_chunk(args):
-    mix, start, end, device, models, infer_session = args
-    mix_part = mix[:, start:end].to(device)
-    sources = demix_base(mix_part, device, models, infer_session)
-    return start, end, sources.cpu()
-
-def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75, num_workers=None):
+def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
     start_time = time()
-    
-    step = int(chunk_size * (1 - overlap))
-    result = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32)
-    divider = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32)
 
-    chunks = [(mix, max(0, i), min(i + chunk_size, mix.shape[-1]), device, models, infer_session) for i in range(0, mix.shape[-1], step)]
-    
-    with Pool(processes=4) as pool:
-        results = pool.map(demix_chunk, chunks)
-    
-    for start, end, sources in results:
+    step = int(chunk_size * (1 - overlap))
+    # print('Initial shape: {} Chunk size: {} Step: {} Device: {}'.format(mix.shape[-1], chunk_size, step, device))
+    result = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32).to('cuda')
+    divider = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32).to('cuda')
+
+    total = 0
+    for i in range(0, mix.shape[-1], step):
+        total += 1
+
+        start = i
+        end = min(i + chunk_size, mix.shape[-1])
+        # print('Chunk: {} Start: {} End: {}'.format(total, start, end))
+        mix_part = mix[:, start:end]
+        sources = demix_base(mix_part, device, models, infer_session)
         result[..., start:end] += sources
         divider[..., start:end] += 1
-
     sources = result / divider
-    print('Final shape: {} Overall time: {:.2f}'.format(sources.shape, time() - start_time))
+    # print('Final shape: {} Overall time: {:.2f}'.format(sources.shape, time() - start_time))
+    return sources
 
 
 class EnsembleDemucsMDXMusicSeparationModel:
@@ -351,19 +349,20 @@ class EnsembleDemucsMDXMusicSeparationModel:
         vocals_demucs += 0.5 * -apply_model(model, -audio, shifts=shifts, overlap=overlap)[0][3]
 
         overlap = overlap_large
-        sources1 = demix_full(
-            mixed_sound_array.T,
-            self.device,
-            self.chunk_size,
-            self.mdx_models1,
-            self.infer_session1,
-            overlap=overlap
-        )[0]
+        from concurrent.futures import ThreadPoolExecutor
 
-        vocals_mdxb1 = sources1
+        def process1():
+            sources1 = demix_full(
+                mixed_sound_array.T,
+                self.device,
+                self.chunk_size,
+                self.mdx_models1,
+                self.infer_session1,
+                overlap=overlap
+            )[0]
+            return sources1
 
-
-        if self.single_onnx is False:
+        def process2():
             sources2 = -demix_full(
                 -mixed_sound_array.T,
                 self.device,
@@ -372,10 +371,17 @@ class EnsembleDemucsMDXMusicSeparationModel:
                 self.infer_session2,
                 overlap=overlap
             )[0]
+            return sources2
 
-            # it's instrumental so need to invert
-            instrum_mdxb2 = sources2
-            vocals_mdxb2 = mixed_sound_array.T.to(self.device) - instrum_mdxb2.to(self.device)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future1 = executor.submit(process1)
+            future2 = executor.submit(process2)
+
+        vocals_mdxb1 = future1.result()
+        instrum_mdxb2 = future2.result()
+
+        # it's instrumental so need to invert
+        vocals_mdxb2 = mixed_sound_array.T.to(self.device) - instrum_mdxb2.to(self.device)
 
         if update_percent_func is not None:
             val = 100 * (current_file_number + 0.40) / total_files
