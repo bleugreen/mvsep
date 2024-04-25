@@ -426,7 +426,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
                 out[3] = self.weights_vocals[i] * out[3]
 
                 return out
-
+            print(self.models)
             with Pool(processes=4) as pool:
                 all_outs = pool.starmap(process_model, enumerate(self.models))
 
