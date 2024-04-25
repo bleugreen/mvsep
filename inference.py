@@ -333,7 +333,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
         separated_music_arrays = {}
         output_sample_rates = {}
 
-        audio = mixed_sound_array.to(self.device)
+        audio = mixed_sound_array.unsqueeze(0).to(self.device)
 
         overlap_large = self.overlap_large
         overlap_small = self.overlap_small
@@ -433,7 +433,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
 
                 return out
 
-            with Pool(processes=2) as pool:
+            with Pool(processes=1) as pool:
                 all_outs = pool.starmap(process_model, enumerate(self.models))
 
             out = torch.stack(all_outs).sum(dim=0).cpu().numpy()
