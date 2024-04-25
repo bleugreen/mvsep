@@ -149,16 +149,16 @@ def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
     start_time = time()
 
     step = int(chunk_size * (1 - overlap))
-    # print('Initial shape: {} Chunk size: {} Step: {} Device: {}'.format(mix.shape.size(-1), chunk_size, step, device))
-    result = torch.zeros((1, 2, mix.size(-1)), dtype=torch.float32, device=device)
-    divider = torch.zeros((1, 2, mix.size(-1)), dtype=torch.float32, device=device)
+    # print('Initial shape: {} Chunk size: {} Step: {} Device: {}'.format(mix.shape[-1], chunk_size, step, device))
+    result = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32, device=device)
+    divider = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32, device=device)
 
     total = 0
-    for i in range(0, mix.size(-1), step):
+    for i in range(0, mix.shape[-1], step):
         total += 1
 
         start = i
-        end = min(i + chunk_size, mix.size(-1))
+        end = min(i + chunk_size, mix.shape[-1])
         # print('Chunk: {} Start: {} End: {}'.format(total, start, end))
         mix_part = mix[:, start:end]
         sources = demix_base(mix_part, device, models, infer_session)
@@ -489,17 +489,9 @@ def predict_with_model(options):
             only_vocals = True
 
     model = None
-    if 'large_gpu' in options:
-        if options['large_gpu'] is True:
-            print('Use fast large GPU memory version of code')
-            model = EnsembleDemucsMDXMusicSeparationModel(options)
-    if model is None:
-        print('Use low GPU memory version of code')
-        model = EnsembleDemucsMDXMusicSeparationModelLowGPU(options)
+    print('Use fast large GPU memory version of code')
+    model = EnsembleDemucsMDXMusicSeparationModel(options)
 
-    update_percent_func = None
-    if 'update_percent_func' in options:
-        update_percent_func = options['update_percent_func']
 
     for i, input_audio in enumerate(options['input_audio']):
         print('Go for: {}'.format(input_audio))
@@ -510,7 +502,7 @@ def predict_with_model(options):
         result, sample_rates = model.separate_music_file(
             audio.T,
             sr,
-            update_percent_func,
+            None,
             i,
             len(options['input_audio']),
             only_vocals,
@@ -529,16 +521,13 @@ def predict_with_model(options):
         sf.write(output_folder + '/' + output_name, inst, sr, subtype='FLOAT')
         print('File created: {}'.format(output_folder + '/' + output_name))
 
-        if not only_vocals:
-            # instrumental part 2
-            inst2 = result['bass'] + result['drums'] + result['other']
-            output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum2')
-            sf.write(output_folder + '/' + output_name, inst2, sr, subtype='FLOAT')
-            print('File created: {}'.format(output_folder + '/' + output_name))
+        # if not only_vocals:
+        #     # instrumental part 2
+        #     inst2 = result['bass'] + result['drums'] + result['other']
+        #     output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum2')
+        #     sf.write(output_folder + '/' + output_name, inst2, sr, subtype='FLOAT')
+        #     print('File created: {}'.format(output_folder + '/' + output_name))
 
-    if update_percent_func is not None:
-        val = 100
-        update_percent_func(int(val))
 
 
 def md5(fname):
