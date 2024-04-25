@@ -146,28 +146,30 @@ def demix_base(mix, device, models, infer_session):
     return torch.stack(sources).to(device)
 
 
-def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
+def demix_chunk(args):
+    mix, start, end, device, models, infer_session = args
+    mix_part = mix[:, start:end].to(device)
+    sources = demix_base(mix_part, device, models, infer_session)
+    return start, end, sources.cpu()
+
+def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75, num_workers=None):
     start_time = time()
-
+    
     step = int(chunk_size * (1 - overlap))
-    # print('Initial shape: {} Chunk size: {} Step: {} Device: {}'.format(mix.shape[-1], chunk_size, step, device))
-    result = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32).to('cuda')
-    divider = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32).to('cuda')
+    result = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32)
+    divider = torch.zeros((1, 2, mix.shape[-1]), dtype=torch.float32)
 
-    total = 0
-    for i in range(0, mix.shape[-1], step):
-        total += 1
-
-        start = i
-        end = min(i + chunk_size, mix.shape[-1])
-        # print('Chunk: {} Start: {} End: {}'.format(total, start, end))
-        mix_part = mix[:, start:end]
-        sources = demix_base(mix_part, device, models, infer_session)
+    chunks = [(mix, max(0, i), min(i + chunk_size, mix.shape[-1]), device, models, infer_session) for i in range(0, mix.shape[-1], step)]
+    
+    with Pool(processes=4) as pool:
+        results = pool.map(demix_chunk, chunks)
+    
+    for start, end, sources in results:
         result[..., start:end] += sources
         divider[..., start:end] += 1
+
     sources = result / divider
-    # print('Final shape: {} Overall time: {:.2f}'.format(sources.shape, time() - start_time))
-    return sources
+    print('Final shape: {} Overall time: {:.2f}'.format(sources.shape, time() - start_time))
 
 
 class EnsembleDemucsMDXMusicSeparationModel:
@@ -347,10 +349,6 @@ class EnsembleDemucsMDXMusicSeparationModel:
 
 
         vocals_demucs += 0.5 * -apply_model(model, -audio, shifts=shifts, overlap=overlap)[0][3]
-
-        if update_percent_func is not None:
-            val = 100 * (current_file_number + 0.20) / total_files
-            update_percent_func(int(val))
 
         overlap = overlap_large
         sources1 = demix_full(
